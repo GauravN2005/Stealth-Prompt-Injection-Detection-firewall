@@ -129,10 +129,16 @@ python -m venv .venv
 pip install -r backend/requirements.txt
 ```
 
-> ⚠️ **Model Weights:** The `model.safetensors` file (267 MB) is excluded from git due to size limits.  
-> Download and place it at: `backend/prompt_injection_detector/model.safetensors`
+> The `model.safetensors` file (267 MB) is hosted on [Hugging Face Hub](https://huggingface.co/gaurav-nimbalkar/stealth-prompt-injection-detector).
+> Run the setup script below to download it automatically.
 
-### 3. Run the Backend
+### 3. Download the Model (Required — run once)
+```bash
+python setup_model.py
+```
+This will automatically download `model.safetensors` (~267 MB) from Hugging Face Hub into the correct folder.
+
+### 4. Run the Backend
 ```bash
 cd backend
 ..\\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
