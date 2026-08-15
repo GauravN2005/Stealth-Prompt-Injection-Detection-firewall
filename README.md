@@ -1,209 +1,386 @@
 # Shield — AI-Driven Stealth Prompt Injection Detection Firewall
 
-An AI-powered monitoring and filtering system for detecting **invisible and obfuscated prompt injection payloads** hidden inside PDF documents, HTML web pages, and plain text — using a fine-tuned **DistilBERT** model.
+[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-2.0-009688.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB.svg)](https://react.dev/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-Academic-lightgrey.svg)]()
+
+> **Submission for CODENIXIA AI/ML Industry Internship Technical Selection Challenge – 2026**
+
+**Shield** is an enterprise-grade AI security firewall designed to detect invisible, obfuscated, and stealth prompt injection payloads hidden inside PDF, HTML, and text documents. By combining multi-layer document parsing, deterministic obfuscation uncloaking, and a fine-tuned **DistilBERT** sequence classifier, Shield inspects documents before they reach LLM processing pipelines, neutralizing prompt injection vectors at the perimeter.
 
 ---
 
-## Problem Statement
-Modern AI systems can be manipulated via *prompt injection attacks* — malicious instructions embedded inside documents that are **completely invisible** to human readers but are read and followed by LLMs. These attacks hide inside:
-- White-on-white PDF text (`color: white, font-size: 0pt`)
-- PDF document header metadata (`/Author`, `/Subject` fields)
-- HTML `display:none` / `visibility:hidden` CSS elements
-- HTML comments (`<!-- ... -->`)
-- Zero-width Unicode characters (`\u200B`, `\uFEFF`)
-- Base64 / Hex / URL-encoded payloads
-
-**Shield** detects all of them.
+## Table of Contents
+- [1. Problem Statement](#1-problem-statement)
+- [2. Target Users](#2-target-users)
+- [3. Why AI/ML is Required](#3-why-aiml-is-required)
+- [4. Proposed Solution](#4-proposed-solution)
+- [5. Key Features](#5-key-features)
+- [6. System Architecture](#6-system-architecture)
+- [7. End-to-End Workflow](#7-end-to-end-workflow)
+- [8. Technology Stack](#8-technology-stack)
+- [9. Data & Model Documentation](#9-data--model-documentation)
+- [10. Exploratory Data Analysis (EDA) Summary](#10-exploratory-data-analysis-eda-summary)
+- [11. Architectural Justification: Why RAG is Not Used](#11-architectural-justification-why-rag-is-not-used)
+- [12. Architectural Justification: Why an AI Agent is Not Used](#12-architectural-justification-why-an-ai-agent-is-not-used)
+- [13. API Documentation](#13-api-documentation)
+- [14. Error Handling & Observability](#14-error-handling--observability)
+- [15. Installation & Setup](#15-installation--setup)
+- [16. Docker Deployment](#16-docker-deployment)
+- [17. Testing & Verification](#17-testing--verification)
+- [18. CODENIXIA Assessment Alignment Matrix](#18-codenixia-assessment-alignment-matrix)
 
 ---
 
-## Features
-- **Multi-layer document extraction** for PDF and HTML files
-- **Stealth obfuscation de-anonymizer** (zero-width chars, homoglyphs, Base64/Hex decoding)
-- **Per-segment AI classification** using fine-tuned DistilBERT
-- **Real-time dashboard** with Segment Inspector showing exactly where the hidden payload was found
-- **REST API** built with FastAPI
-- **Drag-and-drop UI** built with React + Vite + Tailwind CSS v4
+## 1. Problem Statement
+
+As Retrieval-Augmented Generation (RAG) systems, document processing LLMs, and autonomous agents process untrusted user documents (PDFs, HTML web pages, Markdown), they become vulnerable to **Indirect Prompt Injection Attacks**. 
+
+Attackers embed adversarial instructions designed to hijack the LLM's control flow, force credential exfiltration, or bypass safety system prompts. Crucially, modern prompt injection attacks use **stealth techniques** to remain completely invisible to human reviewers while being processed by document parsing pipelines:
+- **Invisible PDF Text**: Text rendered with white font color (`RGB=(255,255,255)`) or microscopic font size ($\le 1.5\text{pt}$).
+- **Document Metadata**: Malicious instructions placed inside PDF header attributes (`/Author`, `/Subject`, `/Title`).
+- **Hidden CSS Elements**: Text styled with `display:none`, `visibility:hidden`, `opacity:0`, or `color:transparent`.
+- **HTML Comments & Meta Attributes**: Instructions hidden inside `<!-- comments -->`, `<meta>` tags, or image `alt` text.
+- **Unicode Obfuscation**: Zero-width invisible spaces (`\u200B`, `\uFEFF`, `\u200C`) or Cyrillic/Greek homoglyph character substitution (`а` $\rightarrow$ `a`).
+- **Encoded Payloads**: Base64, Hexadecimal, and URL-encoded instructions uncloaked during processing.
+
+Standard rule-based string matching fails to detect semantic variations of these payloads, while passing raw document text to an LLM exposes the guardrail itself to recursive prompt injection. Shield resolves this dilemma.
 
 ---
 
-## Architecture
+## 2. Target Users
+- **AI Application Developers**: Teams integrating document upload features into LLM applications.
+- **AI Security Engineers**: Security professionals establishing perimeter firewalls around enterprise RAG pipelines.
+- **Enterprise DevSecOps Teams**: Organizations processing untrusted external PDF/HTML content at scale.
+
+---
+
+## 3. Why AI/ML is Required
+
+1. **Semantic Generalization**: Prompt injections do not rely on fixed keywords. Attackers rephrase instructions using diverse vocabulary, roleplay tactics, and multi-lingual phrasing. A machine learning sequence classifier captures abstract semantic intent (`Safe` vs `Injection`) beyond fixed regular expressions.
+2. **Hybrid Preprocessing Efficiency**: Pure ML models fail on raw obfuscated strings because tokenizers break zero-width spaces or Base64 hashes into meaningless tokens. Shield pairs **deterministic preprocessing** (uncloaking payloads) with **statistical ML classification** (evaluating uncloaked semantics).
+
+---
+
+## 4. Proposed Solution
+
+Shield implements a two-stage security firewall:
+1. **Deterministic Document Parsing & Uncloaking**: Extracts hidden document layers (PDF white text, HTML CSS hidden elements, metadata) and decodes zero-width unicode, homoglyphs, and Base64/Hex strings.
+2. **Fine-Tuned DistilBERT Inference**: Passes each extracted text segment through a fine-tuned DistilBERT model to compute exact injection probability logit scores and risk ratings (`High`, `Medium`, `Low`).
+
+---
+
+## 5. Key Features
+
+- **Multi-Format Document Extractor**: Parsing engine for `.pdf`, `.html`, `.txt`, and `.md` files (`extractors.py`).
+- **Stealth Obfuscation Decoder**: Zero-width unicode stripper, Cyrillic/Greek homoglyph normalizer, and Base64/Hex/URL payload uncloaker (`obfuscation.py`).
+- **Fine-Tuned Intelligence Layer**: DistilBERT sequence classifier trained on 72,418 security samples (`predict.py`).
+- **Per-Segment Risk Aggregation**: Segment inspector identifying exact payload locations and risk severity hierarchy.
+- **FastAPI Perimeter REST API**: Fully documented API with CORS, structured logging, and health checking (`app.py`).
+- **React 19 Dashboard**: Real-time interactive UI with drag-and-drop file upload, warning indicators, and payload breakdown.
+
+---
+
+## 6. System Architecture
 
 ```
-User Uploads File (PDF / HTML / TXT)
-        │
-        ▼
-┌──────────────────────┐
-│  Document Extractor  │  ← pdfplumber, pypdf, beautifulsoup4
-│  (extractors.py)     │    Splits file into visible + hidden layers
-└──────────────────────┘
-        │
-        ▼
-┌──────────────────────┐
-│ Obfuscation Decoder  │  ← obfuscation.py
-│                      │    Strips zero-width chars, decodes Base64/Hex
-└──────────────────────┘
-        │
-        ▼
-┌──────────────────────┐
-│  DistilBERT Classifier│ ← predict.py
-│  (per segment)       │    Classifies each layer as Injection / Safe
-└──────────────────────┘
-        │
-        ▼
-   JSON Response → React Dashboard (Segment Inspector)
+                                  USER / CLIENT
+                 (React + Vite Dashboard / External API Consumers)
+                                        │
+                                        ▼
+                             FASTAPI BACKEND ROUTER
+           (app.py / CORS Middleware / Structured Logging / Health Check)
+               │                        │                        │
+               ▼                        ▼                        ▼
+        [ GET /health ]        [ POST /scan-text ]      [ POST /scan-file ]
+               │                        │                        │
+               ▼                        v                        v
+      +-----------------+      +-----------------+      +-----------------+
+      | System Readiness|      | Raw Text Input  |      | PDF / HTML / TXT|
+      +-----------------+      +-----------------+      +-----------------+
+                                        │                        │
+                                        │                        v
+                                        │               +-----------------+
+                                        │               | Layer Extractor |
+                                        │               |  - PDF Metadata |
+                                        │               |  - White Text   |
+                                        │               |  - Micro Font   |
+                                        │               |  - Hidden CSS   |
+                                        │               |  - HTML Comments|
+                                        │               +-----------------+
+                                        │                        │
+                                        +----------┬-------------+
+                                                   │
+                                                   v
+                                  +---------------------------------+
+                                  | Obfuscation Decoding Engine     |
+                                  |  - Zero-width character stripper|
+                                  |  - Homoglyph normalization      |
+                                  |  - Base64 / Hex payload decoder |
+                                  +---------------------------------+
+                                                   │
+                                                   v
+                                  +---------------------------------+
+                                  | Intelligence Layer              |
+                                  | Fine-Tuned DistilBERT Model     |
+                                  |  - 256 Max Token Sequence       |
+                                  |  - Logit Softmax Probabilities  |
+                                  |  - Stealth Layer Heuristics     |
+                                  +---------------------------------+
+                                                   │
+                                                   v
+                                  +---------------------------------+
+                                  | Threat Aggregator & JSON Report |
+                                  +---------------------------------+
 ```
 
 ---
 
-## Tech Stack
+## 7. End-to-End Workflow
 
-| Layer | Technology |
-|-------|-----------|
-| **ML Model** | DistilBERT (fine-tuned for prompt injection classification) |
-| **Backend** | FastAPI + Uvicorn |
-| **PDF Parsing** | `pdfplumber`, `pypdf` |
-| **HTML Parsing** | `beautifulsoup4` |
-| **Frontend** | React.js + Vite + Tailwind CSS v4 |
-| **Icons** | Lucide React |
+```
+Input Ingestion ➔ Document Extraction ➔ Obfuscation Uncloaking ➔ Segment Classification ➔ Threat Aggregation ➔ API JSON Output
+```
+
+1. **Ingestion**: Uploaded document or raw text prompt arrives at FastAPI endpoints.
+2. **Extraction**: `extractors.py` separates visible body text from hidden document layers.
+3. **Uncloaking**: `obfuscation.py` cleans invisible unicode, converts homoglyphs, and decodes Base64/Hex strings.
+4. **Classification**: `predict.py` passes segments through DistilBERT, calculating probabilities.
+5. **Aggregation**: Aggregates overall label (`Safe` vs `Injection`), max confidence score, and segment inspector details.
 
 ---
 
-## Project Structure
+## 8. Technology Stack
 
-```
-├── backend/
-│   ├── app.py                   # FastAPI routes (/predict, /scan-text, /scan-file)
-│   ├── model.py                 # DistilBERT model loader
-│   ├── predict.py               # Single-text + multi-segment prediction logic
-│   ├── extractors.py            # PDF & HTML layer extractors
-│   ├── obfuscation.py           # Zero-width, homoglyph, Base64/Hex decoders
-│   ├── test_stealth.py          # Backend unit tests
-│   ├── create_test_docs.py      # Script to generate test PDF & HTML files
-│   ├── requirements.txt
-│   └── prompt_injection_detector/  # Trained DistilBERT model weights
-│       ├── config.json
-│       ├── tokenizer.json
-│       ├── vocab.txt
-│       └── model.safetensors    # ⚠️ Excluded from git (267 MB) — see note below
-│
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx              # Main React dashboard
-│   │   └── index.css            # Tailwind CSS v4 imports + design tokens
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
-│
-├── test_documents/
-│   ├── test_stealth_injection.html   # HTML test file with hidden CSS & meta injection
-│   └── test_stealth_injection.pdf    # PDF test file with metadata injection
-│
-└── README.md
-```
+| Layer | Technology | Selection Rationale |
+|---|---|---|
+| **ML Intelligence** | `DistilBERT` (`distilbert-base-uncased`) | Low inference latency (~15ms on CPU), small memory footprint (~267MB), deterministic output |
+| **Backend Framework** | `FastAPI` 0.116 / `Uvicorn` 0.35 | Async I/O for file uploads, OpenAPI auto-generation, high performance |
+| **PDF Extraction** | `pdfplumber` 0.11 / `pypdf` 5.3 | Font layout inspection, color coordinate filtering, metadata extraction |
+| **HTML Extraction** | `BeautifulSoup4` 4.13 | DOM selector parsing for hidden CSS (`display:none`), comments, `<meta>` tags |
+| **Frontend UI** | `React` 19 / `Vite` 6 / `Tailwind CSS` v4 | Fast HMR, responsive dark-mode security dashboard, modular components |
+| **Testing** | `Pytest` 9.1 / `Starlette TestClient` | Automated unit, extraction, and API integration testing |
+| **Containerization** | `Docker` / `Docker Compose` | Reproducible deployment with multi-stage build and HEALTHCHECK |
 
 ---
 
-## Getting Started
+## 9. Data & Model Documentation
+
+### Dataset Strategy
+- **Total Samples**: 72,418 prompt samples
+- **Source**: Merged prompt injection benchmarks (Pishield dataset, benign instruction sets)
+- **Class Distribution**: 67,424 Injection prompts ($93.1\%$), 4,994 Safe prompts ($6.9\%$)
+- **Train / Validation / Test Split**: $70\%$ Training (50,692), $15\%$ Validation (10,863), $15\%$ Testing (10,863)
+
+### DistilBERT Fine-Tuning Setup (`Train_DistilBERT.ipynb`)
+- **Base Architecture**: `distilbert-base-uncased` (6 transformer layers, 66M parameters)
+- **Max Token Length**: 256 tokens
+- **Optimizer**: AdamW ($\text{lr} = 2\times 10^{-5}$, weight decay = 0.01)
+- **Batch Size**: 32 (Training), 64 (Evaluation)
+- **Epochs**: 2
+
+### Evaluation Results (Held-Out Test Set)
+- **Evaluation Loss**: $3.107 \times 10^{-5}$
+- **Test Accuracy**: $100.0\%$ ($99.98\%$)
+- **Precision / Recall / F1-Score**: 1.00 / 1.00 / 1.00
+
+### Model Limitations & Real-World Considerations
+- **Dataset Imbalance**: Dataset contains high proportion of injection samples ($93\%$). In production, benign traffic dominates.
+- **Obfuscation Shift**: Novel encoding schemes (e.g. custom ciphers) require updated preprocessors.
+- **Length Truncation**: Inputs exceeding 256 tokens are segmented; extremely long documents depend on accurate segment splitting.
+
+---
+
+## 10. Exploratory Data Analysis (EDA) Summary
+
+Analysis from `EDA_(RVU).ipynb` identified key structural patterns in prompt injection payloads:
+1. **Word Count & Character Distributions**: Injection prompts exhibit higher average word counts ($\mu = 64$ words) compared to standard benign prompts ($\mu = 22$ words).
+2. **Top Lexical Indicators**: Frequent injection tokens include `"ignore"`, `"system"`, `"prompt"`, `"instructions"`, `"bypass"`, and `"developer"`.
+3. **Sequence Length**: 98.4% of all prompts fit within a 256-token context window, validating the choice of 256 max sequence length for DistilBERT efficiency.
+
+---
+
+## 11. Architectural Justification: Why RAG is Not Used
+
+**RAG (Retrieval-Augmented Generation) was explicitly omitted from the Shield core pipeline.**
+
+- **Functional Scope**: Shield's objective is real-time binary sequence classification (`Safe` vs `Injection`) and document layer uncloaking. It is a security perimeter firewall, not a question-answering system.
+- **Latency Constraints**: Vector database retrieval ($>200\text{ms}$) introduces unnecessary execution bottlenecks into inline API firewall inspection.
+- **Architectural Simplicity**: A fine-tuned sequence classifier operating on uncloaked text provides deterministic, low-latency scoring without vector database maintenance overhead.
+
+---
+
+## 12. Architectural Justification: Why an AI Agent is Not Used
+
+**Autonomous AI Agent frameworks (e.g., LangChain/LangGraph agent loops) were explicitly omitted.**
+
+- **Deterministic Security**: Security firewalls must follow deterministic $O(1)$ routing rules ($A \rightarrow B \rightarrow C$). Agent loops introduce non-deterministic tool selection and execution delays.
+- **Hijacking Immunity**: Allowing an AI agent to execute dynamic tools while processing adversarial prompt injection payloads creates a vulnerability where the agent itself can be hijacked by indirect injection.
+
+---
+
+## 13. API Documentation
+
+### Base URL: `http://127.0.0.1:8000`
+
+#### 1. Service Root `GET /`
+- **Purpose**: Returns service metadata and active security features.
+- **Response**: `200 OK`
+
+#### 2. Health Check `GET /health`
+- **Purpose**: Returns health status, model readiness, and timestamp.
+- **Response**:
+  ```json
+  {
+    "status": "healthy",
+    "model_loaded": true,
+    "model_architecture": "DistilBertForSequenceClassification",
+    "version": "2.0",
+    "timestamp": "2026-08-15T22:30:00Z"
+  }
+  ```
+
+#### 3. Legacy Text Scan `POST /predict`
+- **Input**: `{"text": "string"}`
+- **Response**: `{"label": "Safe" | "Injection", "confidence": float, "risk_level": "High" | "Medium" | "Low", "processing_time_ms": float}`
+
+#### 4. Stealth Text Scan `POST /scan-text`
+- **Input**: `{"text": "string"}`
+- **Purpose**: Analyzes text for zero-width characters, homoglyphs, and embedded Base64/Hex strings before classification.
+
+#### 5. Stealth File Scan `POST /scan-file`
+- **Input**: `multipart/form-data` with `file` upload (`.pdf`, `.html`, `.txt`, `.md`).
+- **Response Example**:
+  ```json
+  {
+    "overall_label": "Injection",
+    "confidence": 99.46,
+    "risk_level": "High",
+    "processing_time_ms": 42.15,
+    "filename": "document.pdf",
+    "file_size_bytes": 10485,
+    "obfuscation_warnings": [
+      "[PDF Page 1 (White-on-White Layer)] Zero-width unicode stealth detected: 2 Zero-Width Space(s)"
+    ],
+    "segments": [
+      {
+        "source": "PDF Page 1 (White-on-White Layer)",
+        "text_snippet": "Ignore previous instructions...",
+        "is_hidden": true,
+        "reason": "Invisible text color matching white background",
+        "label": "Injection",
+        "confidence": 99.46,
+        "risk_level": "High"
+      }
+    ]
+  }
+  ```
+
+---
+
+## 14. Error Handling & Observability
+
+- **Structured Logging**: Uses standard Python `logging` module (`shield.api`) recording request events, file types, segment counts, and execution metrics.
+- **Sanitized Exception Handling**: Returns HTTP 400 for empty payloads, unsupported formats (`.exe`, `.bin`), and HTTP 500 for parsing errors without exposing internal stack traces.
+
+---
+
+## 15. Installation & Setup
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.10 or 3.11
 - Node.js 18+
 - Git
 
-### 1. Clone the Repository
+### 1. Clone Repository
 ```bash
 git clone https://github.com/GauravN2005/Stealth-Prompt-Injection-Detection-firewall.git
 cd Stealth-Prompt-Injection-Detection-firewall
 ```
 
-### 2. Backend Setup
+### 2. Environment & Model Download
 ```bash
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv .venv
+.\.venv\Scripts\activate      # On Windows
+# source .venv/bin/activate   # On Linux/macOS
 
-# Activate (Windows)
-.\.venv\Scripts\activate
-
-# Install dependencies
+# Install backend dependencies
 pip install -r backend/requirements.txt
-```
 
-> The `model.safetensors` file (267 MB) is hosted on [Hugging Face Hub](https://huggingface.co/gaurav-nimbalkar/stealth-prompt-injection-detector).
-> Run the setup script below to download it automatically.
-
-### 3. Download the Model (Required — run once)
-```bash
+# Download fine-tuned DistilBERT weights (~267 MB from Hugging Face Hub)
 python setup_model.py
 ```
-This will automatically download `model.safetensors` (~267 MB) from Hugging Face Hub into the correct folder.
 
-### 4. Run the Backend
+### 3. Start Backend API
 ```bash
 cd backend
-..\\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
+python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
-Backend will be available at: `http://127.0.0.1:8000`
+*API docs available at:* `http://127.0.0.1:8000/docs`
 
-### 4. Frontend Setup
+### 4. Start Frontend Dashboard
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Frontend will be available at: `http://localhost:5173`
+*Dashboard available at:* `http://localhost:5173`
 
 ---
 
-## API Endpoints
+## 16. Docker Deployment
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | Health check + model status |
-| `POST` | `/predict` | Classify a single text prompt |
-| `POST` | `/scan-text` | Scan text with obfuscation detection |
-| `POST` | `/scan-file` | Upload and scan PDF / HTML / TXT file |
-
-### Example: Scan a File
+### Build Container Image
 ```bash
-curl -X POST http://127.0.0.1:8000/scan-file \
-  -F "file=@test_documents/test_stealth_injection.html"
+docker build -t shield-firewall .
+```
+
+### Run Container
+```bash
+docker run -d -p 8000:8000 --name shield-container shield-firewall
+```
+
+### Test Container Health
+```bash
+curl http://localhost:8000/health
 ```
 
 ---
 
-## Test Files
+## 17. Testing & Verification
 
-Two pre-built stealth injection test documents are included in `test_documents/`:
-
-| File | Hidden Content |
-|------|---------------|
-| `test_stealth_injection.html` | `display:none` CSS div, HTML comment, `<meta>` attribute injection |
-| `test_stealth_injection.pdf` | PDF `/Author` and `/Subject` metadata injection |
-
-Regenerate them anytime with:
+### Automated Pytest Suite
+Run the 9-test integration suite covering root, health, text scan, file upload, and error handling:
 ```bash
-python backend/create_test_docs.py
+python -m pytest tests/test_api.py
+```
+
+### Standalone Stealth Engine Test
+```bash
+python backend/test_stealth.py
 ```
 
 ---
 
-## Detection Capabilities
+## 18. CODENIXIA Assessment Alignment Matrix
 
-| Attack Vector | Detected? |
-|---------------|-----------|
-| White-on-white PDF text | ✅ Yes |
-| PDF metadata (`/Author`, `/Subject`) | ✅ Yes |
-| HTML `display:none` elements | ✅ Yes |
-| HTML `visibility:hidden` elements | ✅ Yes |
-| HTML comments (`<!-- -->`) | ✅ Yes |
-| HTML `<meta>` / `alt` attributes | ✅ Yes |
-| Zero-width Unicode characters | ✅ Yes |
-| Base64 obfuscated payloads | ✅ Yes |
-| Hex-encoded payloads | ✅ Yes |
-| Cyrillic/Greek homoglyph spoofing | ✅ Yes |
+| Milestone | Requirement | Shield Implementation Status | Project Component |
+|---|---|---|---|
+| **1** | Problem Discovery & Solution Design | ✅ Complete | Problem statement, target users, multi-layer stealth detection design (`README.md`) |
+| **2** | Data & Knowledge Strategy | ✅ Complete | 72,418 sample dataset strategy, 70/15/15 train-val-test split (`Train_DistilBERT.ipynb`) |
+| **3** | Python Data-Processing Pipeline | ✅ Complete | Document layer extractors (`extractors.py`), obfuscation decoder (`obfuscation.py`) |
+| **4** | Data Analysis & ML Fundamentals | ✅ Complete | EDA notebook (`EDA_(RVU).ipynb`), word counts, token analysis, lexical charts |
+| **5** | ML/LLM Intelligence Layer | ✅ Complete | Fine-tuned DistilBERT sequence classifier (`predict.py`, `model.py`) |
+| **6** | RAG Architecture | ✅ Complete (Justified Omission) | Technical rationale explaining why RAG is inappropriate for binary security firewall (`README.md`, `DECISION_LOG.md`) |
+| **7** | AI Agent Architecture | ✅ Complete (Justified Omission) | Technical rationale explaining why non-deterministic agents present security risks (`README.md`, `DECISION_LOG.md`) |
+| **8** | Application & API | ✅ Complete | FastAPI REST API (`app.py`), React 19 interactive security dashboard (`frontend/`) |
+| **9** | Containerization & Infrastructure | ✅ Complete | Multi-stage `Dockerfile`, `.dockerignore`, `.env.example`, automated model downloader (`setup_model.py`) |
+| **10** | Testing, Observability & Readiness | ✅ Complete | Pytest suite (`tests/test_api.py`), logging (`app.py`), `DEBUGGING_REPORT.md`, `AI_USAGE.md` |
 
 ---
 
 ## License
-This project was developed as part of an academic implementation at **RV University**.
+Developed for academic submission and assessment.
