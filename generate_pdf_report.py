@@ -7,9 +7,10 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable, Image
 )
 from reportlab.pdfgen import canvas
+
 
 
 class NumberedCanvas(canvas.Canvas):
@@ -342,77 +343,16 @@ def build_pdf_report(output_filename="Shield_Project_Technical_Report.pdf"):
 
     story.append(Spacer(1, 6))
 
-    # System Architecture Diagram Box
+    # System Architecture Diagram Image
     story.append(Paragraph("<b>End-to-End System Pipeline Diagram</b>", h2_style))
     
-    ascii_arch = """
-  +-----------------------------------------------------------------------------------+
-  |                             USER / DASHBOARD CLIENT                               |
-  |                (React + Vite UI / REST API Client Ingestion)                      |
-  +-----------------------------------------------------------------------------------+
-                                           |
-                                           v
-  +-----------------------------------------------------------------------------------+
-  |                               FASTAPI ROUTER API                                  |
-  |             (CORS / Structured Logging / Health Check / Exception Filters)        |
-  +-----------------------------------------------------------------------------------+
-               |                                   |                                  |
-               v                                   v                                  v
-        [ GET /health ]                   [ POST /scan-text ]                [ POST /scan-file ]
-               |                                   |                                  |
-               v                                   v                                  v
-     +-------------------+               +-------------------+              +-------------------+
-     | System Readiness  |               | Raw Text Input    |              | PDF / HTML / TXT  |
-     +-------------------+               +-------------------+              +-------------------+
-                                                   |                                  |
-                                                   |                                  v
-                                                   |                        +-------------------+
-                                                   |                        | Multi-Layer       |
-                                                   |                        | Extractor Engine  |
-                                                   |                        | - PDF Metadata    |
-                                                   |                        | - White-Text      |
-                                                   |                        | - Micro Fonts     |
-                                                   |                        | - Hidden CSS      |
-                                                   |                        | - HTML Comments   |
-                                                   |                        +-------------------+
-                                                   |                                  |
-                                                   +----------------+-----------------+
-                                                                    |
-                                                                    v
-                                                   +----------------------------------+
-                                                   | Obfuscation Uncloaking Engine    |
-                                                   | - Zero-width stripper            |
-                                                   | - Homoglyph normalizer           |
-                                                   | - Base64 / Hex decoder           |
-                                                   +----------------------------------+
-                                                                    |
-                                                                    v
-                                                   +----------------------------------+
-                                                   | ML Intelligence Layer            |
-                                                   | Fine-Tuned DistilBERT Classifier |
-                                                   | - Tokenizer Fast (max_len=256)   |
-                                                   | - Softmax Probability Scoring    |
-                                                   | - Stealth Layer Risk Heuristics  |
-                                                   +----------------------------------+
-                                                                    |
-                                                                    v
-                                                   +----------------------------------+
-                                                   | Document Threat Aggregator       |
-                                                   | (Overall Label & Segment Report) |
-                                                   +----------------------------------+
-    """
-
-    arch_table = Table([[Paragraph(f"<pre>{ascii_arch}</pre>", code_style)]], colWidths=[letter[0] - 108])
-    arch_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#0F172A")),
-        ('TEXTCOLOR', (0,0), (-1,-1), colors.HexColor("#F8FAFC")),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8),
-        ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#2563EB")),
-    ]))
-    story.append(arch_table)
+    diag_path = Path("architecture/architecture_diagram.png").resolve()
+    if diag_path.exists():
+        # Insert high-resolution visual architecture diagram image
+        story.append(Image(str(diag_path), width=7.0*inch, height=5.8*inch))
+    else:
+        story.append(Paragraph("<i>[Architecture Diagram Image Pending]</i>", body_style))
+    
     story.append(Spacer(1, 14))
 
     # Page break after Section 2
