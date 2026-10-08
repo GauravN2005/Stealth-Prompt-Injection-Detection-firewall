@@ -19,7 +19,9 @@ ENV/
 
 # Environment variables
 .env
-.env.*
+.env.local
+!.env.example
+
 
 # Large ML model binary (too large for GitHub - use Git LFS or host separately)
 backend/prompt_injection_detector/model.safetensors
